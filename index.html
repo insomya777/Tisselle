@@ -667,10 +667,15 @@
     confirmBtn.textContent = 'Confirmation…';
 
     const dateStr = toDateStr(dates[state.dateIndex]);
+    const appointmentId = crypto.randomUUID();
     const reference = 'VN-' + Math.random().toString(36).slice(2,7).toUpperCase();
     const confirmToken = crypto.randomUUID();
 
-    const { data, error } = await sb.from('appointments').insert({
+    // We generate the id ourselves and don't ask for it back (no .select())
+    // — anon visitors aren't allowed to read appointments back (only staff
+    // can), so requesting a return value here would fail with a 401.
+    const { error } = await sb.from('appointments').insert({
+      id: appointmentId,
       service_id: state.serviceId,
       appointment_date: dateStr,
       start_time: state.time,
@@ -679,7 +684,7 @@
       reference,
       status: 'pending',
       confirm_token: confirmToken,
-    }).select().single();
+    });
 
     if(error){
       if(error.code === '23505'){
@@ -697,10 +702,10 @@
     }
 
     // best-effort: ask the edge function to send the "please confirm" email
-    sb.functions.invoke('send-confirmation', { body: { appointmentId: data.id } }).catch(()=>{});
+    sb.functions.invoke('send-confirmation', { body: { appointmentId } }).catch(()=>{});
 
     state.confirmed = true;
-    state.ref = data.reference;
+    state.ref = reference;
     renderConfirmation();
   }
 
