@@ -656,8 +656,8 @@
     const confirmBtn = document.getElementById('confirmBtn');
     if(!confirmBtn) return;
     const nameOk = nameInput.value.trim().length>1;
-    const emailOk = emailInput.value.trim().length > 3 && emailInput.value.includes('@');
-    const ready = state.serviceId && state.dateIndex !== null && state.time && nameOk && emailOk;
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value.trim());
+    const ready = state.serviceId && state.dateIndex!==null && state.time && nameOk && emailOk;
     confirmBtn.disabled = !ready;
   }
 
@@ -668,6 +668,7 @@
 
     const dateStr = toDateStr(dates[state.dateIndex]);
     const reference = 'VN-' + Math.random().toString(36).slice(2,7).toUpperCase();
+    const confirmToken = crypto.randomUUID();
 
     const { data, error } = await sb.from('appointments').insert({
       service_id: state.serviceId,
@@ -676,6 +677,8 @@
       client_name: nameInput.value.trim(),
       client_email: emailInput.value.trim(),
       reference,
+      status: 'pending',
+      confirm_token: confirmToken,
     }).select().single();
 
     if(error){
@@ -693,7 +696,7 @@
       return;
     }
 
-    // best-effort: ask the edge function to send the email/SMS confirmation
+    // best-effort: ask the edge function to send the "please confirm" email
     sb.functions.invoke('send-confirmation', { body: { appointmentId: data.id } }).catch(()=>{});
 
     state.confirmed = true;
@@ -706,9 +709,9 @@
     const d = dates[state.dateIndex];
     document.getElementById('summaryBlock').innerHTML = `
       <div class="confirm">
-        <div class="mark">✓</div>
-        <h3>Rendez-vous confirmé</h3>
-        <p>${s.name} le ${fmtDate(d)} à ${state.time}, pour ${nameInput.value.trim()}. Un rappel sera envoyé par email à ${emailInput.value.trim()}.</p>
+        <div class="mark">✉</div>
+        <h3>Plus qu'une étape</h3>
+        <p>${s.name} le ${fmtDate(d)} à ${state.time}, pour ${nameInput.value.trim()}. Un email a été envoyé à ${emailInput.value.trim()} — cliquez le lien dedans pour confirmer. Le créneau est réservé 30 minutes.</p>
         <div class="ref">Réf. ${state.ref}</div>
         <br>
         <button class="new-btn" id="newBookingBtn">Prendre un autre rendez-vous</button>
@@ -716,7 +719,7 @@
     `;
     document.getElementById('newBookingBtn').addEventListener('click', ()=>{
       state.serviceId=null; state.dateIndex=null; state.time=null; state.confirmed=false; state.ref=null;
-      nameInput.value=''; phoneInput.value='';
+      nameInput.value=''; emailInput.value='';
       rebuildSummaryBlock();
       renderAll();
     });
@@ -858,7 +861,7 @@
 
   // ---------- Wiring ----------
   document.body.addEventListener('input', (e)=>{
-    if(e.target===nameInput || e.target===phoneInput){ renderSummary(); }
+    if(e.target===nameInput || e.target===emailInput){ renderSummary(); }
   });
 
   document.body.addEventListener('click', (e)=>{
