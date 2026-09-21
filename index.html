@@ -182,6 +182,12 @@
   }
   @media (max-width:760px){
     .layout{grid-template-columns:1fr;}
+    .summary{position:static;}
+  }
+  @media (max-width:480px){
+    .wrap{padding:16px 12px 40px;}
+    .override-row{flex-direction:column;}
+    .override-row input{min-width:100%;}
   }
   section.block{
     background:var(--card);
@@ -238,6 +244,7 @@
     display:flex;
     gap:8px;
     overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
     padding-bottom:6px;
     margin-bottom:22px;
   }
@@ -295,7 +302,7 @@
     margin:14px 0 6px;
   }
   label:first-of-type{margin-top:0;}
-  input[type=text], input[type=tel]{
+  input[type=text], input[type=tel], input[type=email]{
     width:100%;
     border:1px solid var(--line);
     border-radius:4px;
@@ -543,7 +550,7 @@
     closedDates = new Set((data||[]).map(o=>o.date));
   }
 
-  // Uses the get_taken_slots() function (see schema) so anonymous visitors
+  // Uses the get_taken_slots() function so anonymous visitors
   // can see which times are full, without being able to read client names/phones.
   async function loadTaken(dateStr){
     if(takenCache[dateStr]) return takenCache[dateStr];
@@ -671,9 +678,6 @@
     const reference = 'VN-' + Math.random().toString(36).slice(2,7).toUpperCase();
     const confirmToken = crypto.randomUUID();
 
-    // We generate the id ourselves and don't ask for it back (no .select())
-    // — anon visitors aren't allowed to read appointments back (only staff
-    // can), so requesting a return value here would fail with a 401.
     const { error } = await sb.from('appointments').insert({
       id: appointmentId,
       service_id: state.serviceId,
@@ -688,7 +692,6 @@
 
     if(error){
       if(error.code === '23505'){
-        // someone else took this exact slot a moment ago
         delete takenCache[dateStr];
         state.time = null;
         await renderSlots();
